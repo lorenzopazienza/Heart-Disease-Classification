@@ -1,0 +1,570 @@
+---
+title:    "TDS10 Final Project"
+author:   
+- "\\normalsize\\textbf{Student 1} (leader):  Pazienza Lorenzo, 308741, lorenzo.pazienza@studenti.luiss.it"
+- "\\normalsize\\textbf{Student 2}:  Bertelli Lavinia, 311111, lavinia.bertelli@studenti.luiss.it"
+- "\\normalsize\\textbf{Student 3}:  Gentile Carmen Anna Pia, 311951, carmenannapi.gentile@studenti.luiss.it"
+abstract: "This project analyses a clinical dataset describing multiple heart disease types; its aim is building and evaluating predictive models using multinomial and binary logistic regression. The work includes data inspection, preprocessing, exploratory visualization, statistical modelling, and performance assessment via cross-validation.
+All methodological choices are strictly motivated, ensuring both statistical soundness and clinical interpretability. The overall goal is to identify the most useful variables in predicting the presence and severity of heart disease, while providing a coherent and reproducible modelling framework."
+date:     "Last compiled on:   `r format(Sys.time(), '%d %B, %Y')`"
+output:   pdf_document
+fontsize: 12pt
+header-includes:
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{lmodern}
+  \usepackage{lipsum}
+  \usepackage{fancyhdr}
+  \pagestyle{fancy}
+  \renewcommand{\headrulewidth}{0pt}
+  \fancyhf{}
+  \fancyfoot[C]{\twopagenumbers}
+  \fancypagestyle{plain}{
+    \renewcommand{\headrulewidth}{0pt}
+    \fancyhf{}
+    \fancyfoot[C]{\twopagenumbers}
+  }
+  \usepackage[user]{zref}
+  \newcounter{pageaux}
+  \def\currentauxref{PAGEAUX1}
+  \newcommand{\twopagenumbers}{
+    \stepcounter{pageaux}
+    \thepageaux\, of\, \ref{\currentauxref}
+  }
+  \makeatletter
+  \newcommand{\resetpageaux}{
+    \clearpage
+    \edef\@currentlabel{\thepageaux}\label{\currentauxref}
+    \xdef\currentauxref{PAGEAUX\thepage}
+    \setcounter{pageaux}{0}}
+  \AtEndDvi{\edef\@currentlabel{\thepageaux}\label{\currentauxref}}
+  \makeatletter
+---
+
+```{=html}
+<!--
+#########################################################
+###         DO NOT CHANGE the following code          ###
+#########################################################
+-->
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.path = "../figures/",
+  dev = "png",
+  dpi = 300
+)
+```
+
+\thispagestyle{empty}
+\newpage
+\setcounter{page}{1}
+```{=html}
+<!--
+#########################################################
+###      Start writing your report from line 65       ###
+#########################################################
+-->
+```
+
+# Question 1 – Multinomial logistic regression
+
+## (1) Model formulation and comparison with binary logistic regression
+
+Let \(Y\) be a categorical response with \(K \ge 3\) classes, \(Y \in \{1,\dots,K\}\), and let
+\(X = (X_1,\dots,X_p)^\top\) be the vector of predictors. 
+
+In multinomial logistic regression we choose class \(K\)
+as the baseline category. For each non-baseline class
+\(k = 1,\dots,K-1\) we model the log-odds of being in class \(k\) rather than in \(K\), the baseline:
+
+\[
+\log \frac{\Pr(Y = k \mid X)}{\Pr(Y = K \mid X)}
+= \beta_{0k} + \beta_{1k} X_1 + \dots + \beta_{pk} X_p
+= \beta_{0k} + \boldsymbol{\beta}_k^\top X,
+\quad k = 1,\dots,K-1.
+\]
+
+These \(K-1\) equations define the multinomial logistic model.
+Starting from the log-odds equations and using the fact that class probabilities must sum to 1, we obtain for \(k = 1,\dots,K-1\), the following class probability functions: 
+
+\[
+\Pr(Y = k \mid X)
+= \frac{\exp\big(\beta_{0k} + \boldsymbol{\beta}_k^\top X\big)}
+       {1 + \sum_{j=1}^{K-1} \exp\big(\beta_{0j} + \boldsymbol{\beta}_j^\top X\big)},
+\]
+and for the baseline class \(K\),
+
+\[
+\Pr(Y = K \mid X)
+= \frac{1}
+       {1 + \sum_{j=1}^{K-1} \exp\big(\beta_{0j} + \boldsymbol{\beta}_j^\top X\big)}.
+\]
+
+The parameters \(\{\beta_{0k}, \boldsymbol{\beta}_k\}_{k=1}^{K-1}\) are
+estimated by maximum likelihood. After fitting the model, we can compute the predicted class probabilities for each observation and classify it by assigning it to the class with the largest predicted probability.
+
+The multinomial logistic regression model relies on the following
+ assumptions:
+
+- The observations are independent.
+- The log-odds of each class, except for the baseline class, are a linear function of the predictors.
+- No perfect multicollinearity among the predictors.
+- The response variable is categorical with a finite number of unordered classes
+  
+  Binary logistic regression is obtained as a special case when the
+response has only two categories \(Y \in \{0,1\}\) with \(K = 2\). In
+this case we need to model a single log-odds:
+
+\[
+\log \frac{\Pr(Y = 1 \mid X)}{\Pr(Y = 0 \mid X)}
+= \beta_0 + \beta_1 X_1 + \dots + \beta_p X_p.
+\]
+
+In multinomial logistic regression we allow for more than two classes
+(\(K > 2\)), so we need \(K-1\) different log-odds equations, each
+comparing one class to the same baseline class. As a consequence, we
+estimate one set of coefficients for each non-baseline class. The
+coefficients are class-specific: \(\beta_{jk}\) measures the effect of
+\(X_j\) on the log-odds of being in class \(k\) rather than in the
+baseline class \(K\), holding the other predictors fixed.
+
+## (2) Data import and variable encoding
+We import the dataset from the file "heart.csv" and then we transform all categorical (place, cp, restecg, slope, ca and thal) variables and the response variable **hdc** into factors, otherwise R would consider them numerical quantities rather than categories. In addition to that we recode the dichotomous variables sex, fbs and exang into 0/1 dummy variables. More specifically, we use the value 1 to represent the “positive” category in **fbs** and **exang** and we also use it to represent "male" for **sex** and 0 to represent the “negative” category ("female" or “false”).
+
+```{r, echo=TRUE}
+#import the dataset and inspect its structure
+heart <- read.csv("../data/heart.csv", header = TRUE)
+
+#transform categorical variables with more than two categories into factors
+heart$place=factor(heart$place)
+heart$cp=factor(heart$cp)
+heart$restecg=factor(heart$restecg)
+heart$slope=factor(heart$slope)
+heart$ca=factor(heart$ca)
+heart$thal=factor(heart$thal)
+heart$hdc=factor(heart$hdc)
+
+#transform dichotomous variable into dummy variables
+heart$sex   <- ifelse(heart$sex == "Male", 1, 0)
+heart$fbs   <- ifelse(heart$fbs == TRUE, 1, 0)
+heart$exang <- ifelse(heart$exang == TRUE, 1, 0)
+```
+
+## (3) Data inspection and preprocessing
+Then we inspect the structure of the dataset and we observe that it consists of 920 observations and 15 variables. 
+```{r, echo=FALSE}
+#count the number of rows and the number of variable in the dataset
+n_units=nrow(heart)
+n_vars=ncol(heart)
+
+c(N_units = n_units, N_variables = n_vars)
+
+```
+Before dealing with missing values, we performed a data cleaning step on continuous variable (like trestbps,chol,age and thalch) where a recorded value equal to 0 is not physiologically plausible, so we treated it as a miscoding and recoded these entries as NA.
+```{r, include=FALSE}
+# In each of these columns we find all values equal to 0
+# and we replace them with NA
+heart$trestbps[heart$trestbps == 0]=NA
+heart$chol[heart$chol == 0]=NA
+heart$age[heart$age == 0]=NA
+heart$thalch[heart$thalch == 0]=NA
+```
+Then we quantified the number and the percentage of missing values for each single variable and the percentage of observations containing at least one missing value.This analysis allowed us to assess the overall impact of missing data on the sample size.
+```{r,echo=FALSE}
+# count total number of row and number of Na for each column 
+n_tot=nrow(heart)
+missing_count=colSums(is.na(heart))
+
+row_na=sum(!complete.cases(heart)) # total number of Na
+prop_row_na=row_na / nrow(heart) # calculate the proportion of Na
+perc_row_na=round(prop_row_na * 100, 2)
+
+# we make a table with number and proportion of Na for each variable
+missing_prop <- missing_count / n_tot
+Perc= round(missing_prop * 100, 2)
+missing_table=data.frame(
+  Variable=names(missing_prop),
+  Missing=missing_count,
+  Perc=round(missing_prop * 100, 2)
+)
+missing_table
+cat("Percentage of observations with at least one missing value:",
+perc_row_na)
+```
+In total 621 out of 920 observations have at least one missing value (67.5% of the entire dataset), so only 299 observations are complete.
+Since our goal is to retain as much information as possible for the subsequent modelling steps, we decided not to rely on a complete–case analysis that instead would have discarded roughly two thirds of the sample. Such a drastic reduction in the sample size would lead to a drastic increase in the variance of both the estimated coefficients and the predicted probabilities, making the fitted model more unstable and the CV results more noisy and unreliable.
+
+In contrast, adopting an imputation strategy replacing the Na values with the median (for continuous variables) and the mode (for categorical ones) introduces a small amount of bias at the level of individual predictors but it preserves almost the entire sample and therefore reduces the variance of the estimators and of the predictions and because the primary goal is predictive performance, it is acceptable a small increase in bias in exchange for a substantial reduction in variance. This trade–off is expected to lead to a lower test error.
+
+It is also important to specify that we decided to use the median rather than the mean because clinical variables are often skewed and may contain outliers, this means that they can be heavily influenced by extreme values so the median is more robust in this case.
+
+Moreover, we did not standardize or normalize the predictors since the multinomial and binary logistic regressions used in the following sections do not strictly require standardized inputs. Moreover since we are working with clinical variables, keep them in their natural scale make the interpretation more transparent and clinically relevant.
+
+```{r,echo=FALSE}
+# IMPUTATION 
+
+#  function to impute missing values with the median (for numeric variables)
+impute_median <- function(x) {
+  x[is.na(x)] <- median(x, na.rm = TRUE)
+  x
+}
+# function impute missing values with the mode (for categorical variables)
+impute_mode <- function(x) {
+  tab <- table(x)
+  if (length(tab) == 0) return(x)
+  mode_val <- names(tab)[which.max(tab)]
+  x[is.na(x)] <- mode_val
+  x
+}
+
+# identify numeric and factor variables in the dataset
+num_vars <- sapply(heart, is.numeric)
+cat_vars <- sapply(heart, is.factor)
+
+# if the variable is a numeric variable impute it with the median 
+if (any(num_vars)) {
+  heart[, num_vars] <- lapply(heart[, num_vars, drop = FALSE], impute_median)
+}
+
+# if the variable is a categorical variable impute it with the mode
+if (any(cat_vars)) {
+  heart[, cat_vars] <- lapply(heart[, cat_vars, drop = FALSE], impute_mode)
+}
+# count the number of Na for each variable
+colSums(is.na(heart))
+```
+After imputation, we checked with colSums(is.na(heart)) and confirmed that no missing values were left in the dataset. 
+
+## (4) Visual inspection
+In this section we use different kinds of plots to visually explore how the response variable **hdc**( the type of heart disease) is related to other important predictors. First we look singularly at the the distribution of hdc, then we use different plot to examine how other clinically relevant variables behave across the different hdc classes. In particular we decide to consider the variables: **age**, **trestbps**, **chol**, **cp** and **exang**.
+
+We start by examining the distribution of the **hdc** with a barplot to check how many patients fall into a particular heart-disease class and which between the classes are more rare than the others.
+
+```{r hdc-distribution, echo =  FALSE, fig.width = 3.5, fig.height = 2.5, fig.align = 'center'}
+hdc_counts=table(heart$hdc)
+#Barplot for hdc
+barplot(hdc_counts,
+        main = "Distribution of hdc",
+        xlab = "hdc class",
+        ylab = "Num. of patients",
+        cex.names = 0.7)
+```
+
+The bar plot shows a clearly unbalanced distribution of heart-disease classes. The most frequent class is the 0 (no disease), followed by 1, while 2 and 3 are smaller but similarly frequent. Instead class 4 (most severe heart-disease) is the most rare. This class unbalance could make prediction for the rare class more unstable and less accurate. 
+
+## Visual inspection (countinous predictors)
+Next we explore how continuous predictors as age, trestbps and chol vary across the different hdc classes. We choose:
+
+-**age** :since is a key risk factor, and usually more critical condition are common among older people. For this reason is also reasonable to expect age to have predictive power for the type of hcd.
+
+-**trestbps**: a high blood pressure is one of the main risk factor for heart problem, so identify different level of trestbps across heart-diseases classes could provide useful information for classification.
+
+-**chol**:heart disease may be related to the presence of high cholesterol level so, as for trestbps, we expect chol to show systematic differences between hdc classes and to contribute to the predictive performance of the model. 
+
+
+```{r numeric-vs-hdc, echo = FALSE, fig.width = 6, fig.height = 3.5, fig.align = 'center'}
+par(mfrow = c(1, 3))
+#Boxplot for age, trestbps and chol
+boxplot(age ~ hdc, data = heart,
+        main = "Age by hdc",
+        xlab = "hdc class",
+        ylab = "Age")
+
+boxplot(trestbps ~ hdc, data = heart,
+        main = "trestbps by hdc",
+        xlab = "hdc class",
+        ylab = "trestbps")
+
+boxplot(chol ~ hdc, data = heart,
+        main = "Cholesterol (chol) by hdc",
+        xlab = "hdc class",
+        ylab = "chol")
+
+par(mfrow = c(1, 1))
+```
+
+The boxplot for **age** and **trestbps** by hdc indicate that these predictors tend to increase with the level of severity of heart problem, so patients in a higher class of hdc are on average older and with higher resting blood pressure. Instead we can see that cholesterol levels are slightly higher in the more problematic disease classes, although with a large overlap between groups. We can conclude that age and trestbps, and to a lesser extent chol, may have useful predictive power for hdc.
+
+## Visual inspection (categorical predictors)
+We also concentrate on categorical variables like **cp** and **exang**:
+
+-**cp** : Chest pain may be linked to a heart-problem. If certain chest pain types appear much more often in some hdc classes than others, then cp helps distinguish between.
+
+-**exang**: Exercise–induced angina indicates that the heart muscle does not receive enough blood during physical effort, because exang is a dichotomous variable if exang = 1 is more frequent than exang helps separate patients with heart disease from those without.
+
+```{r categorical-vs-hdc, echo = FALSE, fig.width  = 7, fig.height = 4, out.width = "70%", fig.align = "center"}
+tab_cp=table(heart$cp, heart$hdc)
+tab_exang=table(heart$exang, heart$hdc)
+
+# Barplot for exang and cp
+barplot(tab_cp,
+        beside = TRUE,
+        legend.text = TRUE,
+        main = "cp vs hdc",
+        xlab = "cp (chest pain type)",
+        ylab = "Frequency")
+
+barplot(tab_exang,
+        beside = TRUE,
+        legend.text = c("exang = 0", "exang = 1"),
+        main = "exang vs hdc",
+        xlab = "exang",
+        ylab = "Frequency")
+```
+For both **cp** and **exang**, the contingency tables and bar plots for reveal strong associations with hdc. The presence of chest pain becomes much more frequent in the more severe hdc classes. Similarly, (**exang = 1**) is relatively rare in class 0 but appears more often in all the other classes. These patterns support the idea that cp and exang are important categorical predictors for the multinomial regression model.
+
+## (5) Age distribution by sex
+```{r age-sex-setup, echo = FALSE} 
+heart$sex_factor <- factor(heart$sex,
+                           levels = c(0, 1),
+                           labels = c("Female", "Male"))
+```
+
+
+```{r age-by-sex-plot, echo = FALSE, fig.width = 4.5, fig.height = 3.5, fig.align = 'center'}
+boxplot(age ~ sex_factor, data = heart,
+        main = "Age distribution by sex",
+        xlab = "Sex",
+        ylab = "Age (years)")
+```
+
+```{r age-by-sex-ttest, echo = FALSE}
+age_sex_ttest <- t.test(age ~ sex_factor, data = heart)
+age_sex_ttest
+```
+
+We compare the age distribution between males and females in our sample. The boxplot suggests that males tend to be, on average, slightly older than females, although the two distributions largely overlap. To formally assess if this difference is statistically significant, we perform a two-sample t-test with age as the response and sex as the grouping variable. 
+The test returns a t-statistic of **-1.7155** and **301.61** degrees of freedom, with a **p-value= 0.08727**. The 95% confidence interval for the difference (Female - Male) in mean age is **[-2.82, 0.19]**.
+Since **p-value>0.05** we do not find a strong statistical evidence of a different age distribution between males and females in this sample.
+
+## (6) Full multinomial logistic regression model 
+Among the several available implementations in R, we use the function multinom() from the nnet package to fit the multinomial logistic regression model.
+```{r multinom-full-fit, echo = FALSE } 
+library(nnet) #we load the nnet package
+
+# We use class 0 (no disease) as baseline category
+heart$hdc <- relevel(heart$hdc, ref = "0")
+
+# Multinomial logistic regression: full model
+multinom_full <- multinom(
+  hdc ~ age + sex + place + cp + trestbps + chol +
+    fbs + restecg + thalch + exang + oldpeak +
+    slope + ca + thal,
+  data = heart,
+  trace = FALSE
+)
+
+summary(multinom_full)
+```
+### Significance of the coefficients 
+```{r multinom-full-pvalues, echo = FALSE}
+summ  <- summary(multinom_full)
+coefs <- summ$coefficients
+ses   <- summ$standard.errors
+
+zvals <- coefs / ses
+pvals <- 2 * (1 - pnorm(abs(zvals)))
+
+pvals  # matrix of approximate p-values for each coefficient
+```
+
+The response variable hdc has five unordered classes (0–4) describing the severity of heart disease. We model hdc using all available predictors and we take class **0 (no disease)** as the baseline category.
+Therefore, the model estimates four sets of coefficients, one for each class 1–4 compared with class 0. For each class, it includes an intercept and one coefficient for every predictor. A positive coefficient for a predictor in a given disease class means that higher values of that predictor are associated with higher log-odds of being in that class rather than class 0. On the other hand, a negative coefficient indicates that larger values of the predictor are associated with lower log–odds of belonging to that disease class instead of having no disease.
+Using the estimated coefficients and their standard errors, we compute z-values and approximate p-values. These p-values suggest that several predictors have a strong association with the heart-disease classes. In particular, ***age*** and the clinical variables related to chest pain and exercise response display very small p-values in at least one of the non-baseline classes, highlighting the importance of discriminating between different levels of heart-disease severity.
+By contrast, other predictors (for example ***fbs*** and some categories of ***restecg***) tend to have larger p-values across most classes, suggesting a weaker and less clear contribution to the classification among hdc levels.
+Overall, the fitted full multinomial model provides, for each patient, a vector of predicted probabilities over the five hdc classes. Each patient can be classified by assigning them to the class with the highest predicted probability. 
+
+## (7) Evaluating accuracy 
+To evaluate the performance of our multinomial logistic regression model, we focus on the overall misclassification rate as our error measure. 
+For each observation \(i = 1,\dots,n\), let \(y_i\) be the true class and \(\hat{y}_i\) the predicted one. The error is defined as 
+\[
+\text{Err} = \frac{1}{n} \sum_{i=1}^n \mathbf{1}\big(\hat{y}_i \neq y_i\big),
+\]
+where  \(\mathbf{1}(\hat{y}_i \neq y_i)\) equals 1 if the prediction is wrong and 0 otherwise. 
+The corresponding accuracy is
+\[
+\text{Accuracy} = 1 - \text{Err}
+\]
+which is the proportion of correctly classified observations. 
+
+The CV method was selected using seed 11082005, corresponding to the date of birth (11/08/2005) of student Lorenzo Pazienza.
+```{r choosing-method, echo = FALSE}
+#Lorenzo was born on august 11th 2005
+set.seed(11082005)
+cv_methods = c("1. Vanilla validation set",
+               "2. LOO-CV", 
+               "3. K-fold CV (with K = 5)", 
+               "4. K-fold CV (with K = 10)") 
+sample(cv_methods , 1)
+```
+
+The sampled method is 2, corresponding to LOO-CV.
+
+### LOOCV 
+Normally, we would use the cv.glm() function, but this function is designed for glm objects and cannot be directly applied on the multinomial model. Therefore, we implement LOOCV "manually" by repeatedly refitting the full model while leaving out one observation at a time and using it as a test point.
+```{r loo-cv-full-model, echo = TRUE}
+library(nnet)
+
+n <- nrow(heart) 
+pred_loo <- character(n)   
+
+for (i in 1:n) { #we create the for loop 
+ 
+  heart_train<-heart[-i,] #training set (all rows except the i-th one)
+  
+  heart_test<- heart[i, ] #test set (only the i-th observation)
+  
+  #fitting the full multinomial logistic regression with the training set
+  fit_i <- multinom(
+    hdc ~ age + sex + place + cp + trestbps + chol +
+      fbs + restecg + thalch + exang + oldpeak +
+      slope + ca + thal,
+    data  = heart_train,
+    trace = FALSE
+  )
+
+#we predict the hdc class for observation i 
+  pred_loo[i] <- predict(fit_i, newdata = heart_test)
+}
+
+#we compute the misclassification error
+loo_error    <- mean(heart$hdc != pred_loo, na.rm = TRUE)
+loo_accuracy <- 1 - loo_error #and the accuracy 
+
+loo_error
+loo_accuracy
+```
+LOOCV stands for *Leave-One-Out cross-validation*. 
+For each observation we refit the full multinomial model leaving that unit out, obtain the predicted class for the left–out patient, and then compute the overall misclassification rate. During this procedure, a few predictions returned NA because of numerical/convergence issues in some of the re–fitted models; these missing predictions are not related to missing values in the original dataset (which had already been imputed), but arise at the prediction stage. For this reason, when computing the LOOCV error we ignore such cases (using na.rm = TRUE in the error function).
+After this adjustment, the LOOCV misclassification error for the full model is approximately **0.826**, corresponding to an accuracy of about **0.174**. This very low accuracy indicates that, when evaluated out of sample via LOOCV, the full multinomial model has poor predictive performance, confirming that relying only on the training accuracy would provide an overly optimistic assessment of its quality.
+
+
+## (8) Model selection using AIC and LOOCV
+In this task, we are going to apply model selection to the multinomial logistic regression fitted in the previous task. Starting from the full model including all predictors, we use AIC-based stepwise selection (MASS package) to obtain a more parsimonious model. Then, we compare the LOOCV test error of the full model ad of the stepwise-selected model, using same LOOCV implementation employed in task 7.
+```{r error-function, echo = FALSE}
+
+# Misclassification error function
+classification_error <- function(y_true, y_pred) {
+  mean(y_true != y_pred,  na.rm = TRUE)
+}
+```
+
+```{r task8-stepwise-aic, echo = TRUE, message = FALSE, warning = FALSE}
+library(nnet)
+library(MASS)
+
+#We refit the multinomial logistic regression: full model
+full_mod <- multinom(
+  hdc ~ age + sex + place + cp + trestbps + chol +
+    fbs + restecg + thalch + exang + oldpeak +
+    slope + ca + thal,
+  data = heart,
+  trace = FALSE
+)
+
+#We apply bidirectional stepwise selection using AIC
+model_step  <- stepAIC(full_mod, direction = "both", trace = FALSE)
+
+#We extract AIC values of the full and stepwise models for comparison
+aic_full <- AIC(full_mod)
+aic_step <- AIC(model_step)
+
+cat("AIC full model:     ", aic_full, "\n")
+cat("AIC stepwise model: ", aic_step, "\n")
+```
+We reuse the LOOCV's code of the task 7, adapting it also to the stepwise model.
+```{r task8-LOOCV, echo = FALSE, message = FALSE, warning = FALSE}
+#We use the LOOCV function implemented in the task 7
+#For each observation, we fit the model on all remaining units and compute the prediction error for the left-out case
+loocv_multinom <- function(formula, data) {
+  n <- nrow(data)
+  pred_loo <- character(n)
+
+  for (i in 1:n) {
+    
+    heart_train<-heart[-i,]
+    
+    heart_test<- heart[i,]
+#We fit the multinomial logistic model on the training subset
+    fit_i <- multinom(
+      formula,
+      data  = heart_train,
+      trace = FALSE
+    )
+
+#We predict the hdc class for the left-out patient
+    pred_loo[i] <- predict(
+      fit_i,
+      newdata = data[i, , drop = FALSE]
+    )
+  }
+
+#We convert predictions to a factor with the correct levels, then we compute error
+  pred_loo <- factor(pred_loo, levels = levels(data$hdc))
+  err <- classification_error(data$hdc, pred_loo)
+  return(err)
+}
+
+#We convert the models into formulas to reuse them in LOOCV
+full_formula <- formula(full_mod)
+step_formula <- formula(model_step)
+
+#LOOCV error for the full model
+loo_error_full <- loocv_multinom(full_formula, heart)
+
+#LOOCV error for the stepwise-selected model
+loo_error_step <- loocv_multinom(step_formula, heart)
+
+#We transform errors into accuracy
+loo_acc_full <- 1 - loo_error_full
+loo_acc_step <- 1 - loo_error_step
+
+cat("LOOCV error (full):     ", loo_error_full, "\n")
+cat("LOOCV error (stepwise): ", loo_error_step, "\n")
+cat("LOOCV accuracy (full):  ", loo_acc_full,   "\n")
+cat("LOOCV accuracy (step):  ", loo_acc_step,   "\n")
+```
+The stepwise achieves a lower AIC than the full model: 1740.882 < 1757.924; according to the AIC criterion, this indicates a better trade-off between goodness of fit and model complexity. However, the LOOCV comparison shows that the full model obtains a slightly lower test error: 0.82398 < 0.82489, although the difference is small and negligible.
+Given this negligible difference in predictive performance, the AIC advantage and lower complexity of the stepwise model, the stepwise model can be considered preferred as an overall compromise between accuracy and parsimony.
+
+## (9) Full Logistic Regression
+We want to recode hdc into a binary variable hdc01 (0 = no disease, 1 = any type of disease) and fit a full regression model. The goal is to identify which predictors are statistically associated with the presence of heart disease.
+
+```{r task9-stepwise-aic, echo = FALSE, message = FALSE, warning = FALSE}
+#We recode the original response hdc into a binary indicator
+heart$hdc01 <- ifelse(heart$hdc == 0, 0, 1)
+
+#We convert hdc01 to a factor so that logistic regression treats it as a binary categorical outcome
+heart$hdc01 <- factor(heart$hdc01)
+
+#We remove the auxiliary sex_factor variable to avoid perfect collinearity with the dummy-coded sex variable
+heart$sex_factor<-NULL
+
+#We fit the full logistic regression model using all predictors
+log_full <- glm(hdc01 ~ . - hdc, data = heart, family = binomial)
+
+summary(log_full)
+```
+sex, placeSwitzerland, placeVA Long Beach, cpatypical angina, cpnon-anginal, cptypical angina, chol, exang, oldpeak and ca1, ca2, ca3 display very small p-values: these indicates that, after controlling for the other factors, these predictors are strongly associated to the probability to have a heart disease (hdc01 = 1). Instead, other predictors are not significantly (high p-values): these means that their additional contribution to explaining the binary outcome is limited in this model.
+
+## (10) Full Multinomial VS Full Logistic Regression
+We want to compare the in-sample performance of the full multinomial model (hdc with 5 categories) and the full logistic model (hdc01). The goal is to discuss the differences in terms of accuracy, considering that the two models address different classification problems.
+```{r task10-stepwise-aic, echo = FALSE, message = FALSE, warning = FALSE}
+
+#We predict the hdc class using the full multinomial model
+pred_multi <- predict(full_mod, type = "class")
+acc_multi <- mean(pred_multi == heart$hdc)
+
+#We predict the binary outcome (presence of disease) using the full logistic model
+prob_log <- predict(log_full, type = "response")
+pred_log <- ifelse(prob_log > 0.5, 1, 0)
+acc_log <- mean(pred_log == heart$hdc01)
+
+cat("Accuracy multinomial:", acc_multi, "\n")
+cat("Accuracy logistic:", acc_log, "\n")
+```
+The logistic model show a higher accuracy, which is consistent in solving a simpler problem than the multinomial model, that has to distinguish between five severity's levels of hdc. The accuracy of the multinomial model is still reasonably high, considering a more complex problem.
+The different performances does not imply that a model is better than another, but reflect the different nature of the two classification's tasks.
