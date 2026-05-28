@@ -97,12 +97,19 @@ Used to predict the presence/absence of heart disease.
 
 ```text
 .
-├── ProjectWork_Pazienza.Rmd
-├── ProjectWork_Pazienza.pdf
-├── figures/
+├── README.md
+├── .gitignore
 ├── data/
-├── results/
-└── README.md
+│   └── heart.csv
+├── figures/
+│   ├── age-by-sex-plot-1.png
+│   ├── categorical-vs-hdc-1.png
+│   ├── hdc-distribution-1.png
+│   └── numeric-vs-hdc-1.png
+├── notebook/
+│   └── ProjectWork_Pazienza.Rmd
+└── report/
+    └── ProjectWork_Pazienza.pdf
 ```
 
 ---
